@@ -103,6 +103,74 @@ async function assertSafeDestination(target: string): Promise<void> {
   }
 }
 
+interface StagedArtifact {
+  destination: string;
+  staged: string;
+  backup: string;
+  hadOriginal: boolean;
+  installed: boolean;
+}
+
+async function publishArtifacts(artifacts: StagedArtifact[]): Promise<void> {
+  try {
+    // Move the previous pair aside before installing either staged artifact.
+    // This lets a failure during either install restore the complete old state.
+    for (const artifact of artifacts) {
+      await assertSafeDestination(artifact.destination);
+      if ((await lstatIfPresent(artifact.destination)) !== undefined) {
+        await fs.rename(artifact.destination, artifact.backup);
+        artifact.hadOriginal = true;
+      }
+    }
+
+    for (const artifact of artifacts) {
+      await fs.rename(artifact.staged, artifact.destination);
+      artifact.installed = true;
+    }
+  } catch (error) {
+    const rollbackFailures: unknown[] = [];
+
+    for (const artifact of [...artifacts].reverse()) {
+      if (!artifact.installed) continue;
+      try {
+        await fs.rm(artifact.destination, { force: true });
+      } catch (rollbackError) {
+        rollbackFailures.push(rollbackError);
+      }
+    }
+
+    for (const artifact of [...artifacts].reverse()) {
+      if (!artifact.hadOriginal) continue;
+      try {
+        await fs.rename(artifact.backup, artifact.destination);
+      } catch (rollbackError) {
+        rollbackFailures.push(rollbackError);
+      }
+    }
+
+    if (rollbackFailures.length > 0) {
+      fail(
+        "WRITE_FAILED",
+        "The Sveltia CMS files could not be published and the previous output could not be fully restored.",
+        error,
+      );
+    }
+    fail(
+      "WRITE_FAILED",
+      "The Sveltia CMS files could not be published; the previous output was restored.",
+      error,
+    );
+  }
+
+  // Publishing succeeded. Backup cleanup is best-effort because the new pair
+  // is already complete and removing one backup prevents a safe rollback.
+  await Promise.all(
+    artifacts.map(async (artifact) =>
+      fs.rm(artifact.backup, { force: true }).catch(() => {}),
+    ),
+  );
+}
+
 export async function writeArtifacts(
   output: string,
   route: string,
@@ -143,6 +211,22 @@ export async function writeArtifacts(
   const indexTemp = path.join(routeDirectory, `.index.html.${nonce}.tmp`);
   const configTemp = path.join(routeDirectory, `.config.yml.${nonce}.tmp`);
   const temporaryFiles = [indexTemp, configTemp];
+  const artifacts: StagedArtifact[] = [
+    {
+      destination: indexPath,
+      staged: indexTemp,
+      backup: path.join(routeDirectory, `.index.html.${nonce}.backup`),
+      hadOriginal: false,
+      installed: false,
+    },
+    {
+      destination: configPath,
+      staged: configTemp,
+      backup: path.join(routeDirectory, `.config.yml.${nonce}.backup`),
+      hadOriginal: false,
+      installed: false,
+    },
+  ];
 
   try {
     await Promise.all([
@@ -159,13 +243,12 @@ export async function writeArtifacts(
     ]);
     await assertSafeDestination(indexPath);
     await assertSafeDestination(configPath);
-    await fs.rename(indexTemp, indexPath);
-    await fs.rename(configTemp, configPath);
+    await publishArtifacts(artifacts);
   } catch (error) {
     if (error instanceof Error && error.name === "SveltiaCmsError") throw error;
     fail(
       "WRITE_FAILED",
-      "The Sveltia CMS files could not be published atomically.",
+      "The Sveltia CMS files could not be staged for publication.",
       error,
     );
   } finally {

@@ -171,6 +171,52 @@ describe("Quartz emitter", () => {
     ]);
   });
 
+  it("restores the previous pair when the second publish rename fails", async () => {
+    const root = await projectWithConfig(
+      validConfig.replace("__GITHUB_REPOSITORY__", "owner/repo"),
+    );
+    const routeDirectory = path.join(root, "public/admin");
+    const indexPath = path.join(routeDirectory, "index.html");
+    const configPath = path.join(routeDirectory, "config.yml");
+    await fs.mkdir(routeDirectory, { recursive: true });
+    await fs.writeFile(indexPath, "old index");
+    await fs.writeFile(configPath, "old config");
+
+    const rename = fs.rename.bind(fs);
+    let injectedFailure = false;
+    vi.spyOn(fs, "rename").mockImplementation(async (from, to) => {
+      const source = String(from);
+      const destination = String(to);
+      if (
+        !injectedFailure &&
+        path.basename(source).startsWith(".config.yml.") &&
+        source.endsWith(".tmp") &&
+        path.basename(destination) === "config.yml"
+      ) {
+        injectedFailure = true;
+        throw Object.assign(new Error("injected rename failure"), {
+          code: "EIO",
+        });
+      }
+      await rename(from, to);
+    });
+
+    const plugin = SveltiaCms({
+      configFile: "sveltia.config.yml",
+      title: "New title",
+    });
+    await expect(plugin.emit(buildContext(), [], resources)).rejects.toThrow(
+      /WRITE_FAILED.*previous output was restored/,
+    );
+
+    await expect(fs.readFile(indexPath, "utf8")).resolves.toBe("old index");
+    await expect(fs.readFile(configPath, "utf8")).resolves.toBe("old config");
+    expect((await fs.readdir(routeDirectory)).sort()).toEqual([
+      "config.yml",
+      "index.html",
+    ]);
+  });
+
   it("partialEmit reruns the complete pipeline", async () => {
     const root = await projectWithConfig(
       validConfig.replace("__GITHUB_REPOSITORY__", "first/repo"),

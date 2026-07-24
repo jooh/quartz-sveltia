@@ -17,7 +17,7 @@ Quartz 5 installs community plugins from Git repositories:
 
 ```sh
 npx quartz plugin add github:jooh/quartz-sveltia
-npx quartz plugin enable sveltia-cms
+npx quartz plugin enable quartz-sveltia
 ```
 
 Configure the installed plugin in `quartz.config.yaml`:
@@ -33,6 +33,8 @@ plugins:
 ```
 
 Create `sveltia.config.yml` in the Quartz project root. The [basic example](examples/basic/sveltia.config.yml) edits Markdown with frontmatter, stores media where Quartz can publish it, and restricts GitHub authentication to token entry through Sveltia's UI.
+
+The configured route must be owned exclusively by this emitter. Quartz's built-in Assets emitter copies non-Markdown content files concurrently during a full build, so remove or relocate pre-existing files such as `content/admin/index.html` and `content/admin/config.yml` (or their equivalents for a custom route). Otherwise, two emitters can race to write the same destinations and the final content is nondeterministic.
 
 ## Options
 
@@ -89,7 +91,7 @@ Sveltia commits content changes to the configured repository. Those changes appe
 
 Emission fails before writing anything when options, paths, repository resolution, YAML, required CMS structure, or credential scans fail. The config must have an object root, an object `backend` with a name, a valid GitHub `owner/repository` when using that backend, and at least one named collection with exactly one usable `folder` or non-empty `files` definition. Errors report a safe category and location without echoing detected values.
 
-Output routes cannot escape the Quartz output directory. Existing symbolic links in the output root or route are rejected, and both artifacts are staged as temporary siblings before atomic renames.
+Output routes cannot escape the Quartz output directory. Existing symbolic links in the output root or route are rejected. Both artifacts are staged as temporary siblings and individually replaced with atomic renames; if either replacement fails, the emitter rolls back to the complete previous pair.
 
 ## GitHub Pages project paths
 

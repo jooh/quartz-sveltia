@@ -6644,6 +6644,53 @@ async function assertSafeDestination(target) {
     );
   }
 }
+async function publishArtifacts(artifacts) {
+  try {
+    for (const artifact of artifacts) {
+      await assertSafeDestination(artifact.destination);
+      if (await lstatIfPresent(artifact.destination) !== void 0) {
+        await fs2.rename(artifact.destination, artifact.backup);
+        artifact.hadOriginal = true;
+      }
+    }
+    for (const artifact of artifacts) {
+      await fs2.rename(artifact.staged, artifact.destination);
+      artifact.installed = true;
+    }
+  } catch (error) {
+    const rollbackFailures = [];
+    for (const artifact of [...artifacts].reverse()) {
+      if (!artifact.installed) continue;
+      try {
+        await fs2.rm(artifact.destination, { force: true });
+      } catch (rollbackError) {
+        rollbackFailures.push(rollbackError);
+      }
+    }
+    for (const artifact of [...artifacts].reverse()) {
+      if (!artifact.hadOriginal) continue;
+      try {
+        await fs2.rename(artifact.backup, artifact.destination);
+      } catch (rollbackError) {
+        rollbackFailures.push(rollbackError);
+      }
+    }
+    if (rollbackFailures.length > 0) {
+      fail(
+        "WRITE_FAILED",
+        "The Sveltia CMS files could not be published and the previous output could not be fully restored.");
+    }
+    fail(
+      "WRITE_FAILED",
+      "The Sveltia CMS files could not be published; the previous output was restored.");
+  }
+  await Promise.all(
+    artifacts.map(
+      async (artifact) => fs2.rm(artifact.backup, { force: true }).catch(() => {
+      })
+    )
+  );
+}
 async function writeArtifacts(output, route, html, config, cwd = process.cwd()) {
   if (typeof output !== "string" || output.trim().length === 0 || /[\u0000]/u.test(output)) {
     fail("INVALID_OUTPUT_PATH", "Quartz provided an invalid output directory.");
@@ -6668,6 +6715,22 @@ async function writeArtifacts(output, route, html, config, cwd = process.cwd()) 
   const indexTemp = path3.join(routeDirectory, `.index.html.${nonce}.tmp`);
   const configTemp = path3.join(routeDirectory, `.config.yml.${nonce}.tmp`);
   const temporaryFiles = [indexTemp, configTemp];
+  const artifacts = [
+    {
+      destination: indexPath,
+      staged: indexTemp,
+      backup: path3.join(routeDirectory, `.index.html.${nonce}.backup`),
+      hadOriginal: false,
+      installed: false
+    },
+    {
+      destination: configPath,
+      staged: configTemp,
+      backup: path3.join(routeDirectory, `.config.yml.${nonce}.backup`),
+      hadOriginal: false,
+      installed: false
+    }
+  ];
   try {
     await Promise.all([
       fs2.writeFile(indexTemp, html, {
@@ -6683,13 +6746,12 @@ async function writeArtifacts(output, route, html, config, cwd = process.cwd()) 
     ]);
     await assertSafeDestination(indexPath);
     await assertSafeDestination(configPath);
-    await fs2.rename(indexTemp, indexPath);
-    await fs2.rename(configTemp, configPath);
+    await publishArtifacts(artifacts);
   } catch (error) {
     if (error instanceof Error && error.name === "SveltiaCmsError") throw error;
     fail(
       "WRITE_FAILED",
-      "The Sveltia CMS files could not be published atomically.");
+      "The Sveltia CMS files could not be staged for publication.");
   } finally {
     await Promise.all(
       temporaryFiles.map(
