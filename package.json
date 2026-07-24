@@ -1,0 +1,143 @@
+{
+  "name": "@jooh/quartz-sveltia",
+  "version": "0.1.0",
+  "description": "A Quartz 5 emitter that publishes a Sveltia CMS admin application.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Johan",
+  "homepage": "https://github.com/jooh/quartz-sveltia#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jooh/quartz-sveltia.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jooh/quartz-sveltia/issues"
+  },
+  "keywords": [
+    "quartz",
+    "quartz-plugin",
+    "sveltia",
+    "cms",
+    "emitter"
+  ],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsup",
+    "check": "npm run format && npm run lint && npm run typecheck && npm test && npm run build && npm run check:declarations && npm run check:externals && npm run scan:secrets",
+    "check:declarations": "node scripts/check-declarations.mjs",
+    "check:dist": "npm run build && git diff --exit-code -- dist",
+    "check:externals": "node scripts/check-externals.mjs",
+    "dev": "tsup --watch",
+    "format": "prettier . --check",
+    "format:write": "prettier . --write",
+    "lint": "eslint . --max-warnings=0",
+    "scan:secrets": "node scripts/scan-secrets.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@quartz-community/types": "github:quartz-community/types",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "@sveltia/cms": "0.172.2",
+    "@types/node": "^22.18.0",
+    "eslint": "^9.39.0",
+    "prettier": "^3.6.2",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.0",
+    "vitest": "^4.0.0"
+  },
+  "quartz": {
+    "name": "sveltia-cms",
+    "displayName": "Sveltia CMS",
+    "description": "Emit a Sveltia CMS admin application and validated configuration.",
+    "category": "emitter",
+    "version": "0.1.0",
+    "quartzVersion": ">=5.0.0",
+    "dependencies": [],
+    "defaultOrder": 50,
+    "defaultEnabled": false,
+    "requiresInstall": false,
+    "defaultOptions": {
+      "route": "admin",
+      "cmsVersion": "0.172.2",
+      "repositoryEnv": "GITHUB_REPOSITORY",
+      "repositoryPlaceholder": "__GITHUB_REPOSITORY__",
+      "title": "Sveltia CMS"
+    },
+    "configSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "configFile"
+      ],
+      "properties": {
+        "configFile": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Project-relative path to the Sveltia CMS YAML configuration."
+        },
+        "route": {
+          "type": "string",
+          "default": "admin",
+          "description": "Safe output route, such as admin or internal/editor."
+        },
+        "cmsVersion": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "default": "0.172.2",
+          "description": "Exact Sveltia CMS version used by the default UNPKG script URL."
+        },
+        "scriptUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Optional credential-free HTTPS URL for the classic Sveltia CMS bundle."
+        },
+        "repository": {
+          "type": "string",
+          "description": "Optional owner/repository used only when the configured placeholder occurs."
+        },
+        "repositoryEnv": {
+          "type": "string",
+          "default": "GITHUB_REPOSITORY",
+          "description": "Non-secret environment variable used as the repository fallback."
+        },
+        "repositoryPlaceholder": {
+          "type": "string",
+          "minLength": 1,
+          "default": "__GITHUB_REPOSITORY__",
+          "description": "Exact placeholder text replaced in the YAML source."
+        },
+        "title": {
+          "type": "string",
+          "default": "Sveltia CMS",
+          "description": "Admin page title."
+        }
+      }
+    }
+  }
+}

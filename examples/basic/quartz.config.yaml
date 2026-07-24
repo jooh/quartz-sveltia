@@ -1,0 +1,6 @@
+# Add this entry to a Quartz 5 quartz.config.yaml `plugins` list.
+- source: github:jooh/quartz-sveltia
+  enabled: true
+  options:
+    configFile: sveltia.config.yml
+    route: admin
