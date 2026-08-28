@@ -63,7 +63,7 @@
     "@eslint/js": "^9.39.0",
     "@sveltia/cms": "0.172.2",
     "@types/node": "^22.18.0",
-    "eslint": "^9.39.0",
+    "eslint": "^10.9.1",
     "prettier": "^3.6.2",
     "tsup": "^8.5.0",
     "typescript": "^5.9.3",
